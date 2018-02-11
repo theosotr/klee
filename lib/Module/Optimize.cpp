@@ -14,9 +14,13 @@
 // This file implements all optimization of the linked module for llvm-ld.
 //
 //===----------------------------------------------------------------------===//
+#include <vector>
+
+#include "Optimize.h"
 
 #include "klee/Config/Version.h"
 #include "klee/Internal/Module/LLVMPassManager.h"
+#include "klee/Internal/Support/ErrorHandling.h"
 
 #include "llvm/Analysis/Passes.h"
 #include "llvm/Analysis/LoopPass.h"
@@ -69,6 +73,42 @@ static cl::opt<bool> StripDebug("strip-debug",
 static cl::alias A1("S", cl::desc("Alias for --strip-debug"),
   cl::aliasopt(StripDebug));
 
+static cl::list<Optimization::StdOptimization>
+  OptType("opt-type",
+      cl::desc("Select optimization to be applied before execution.  (default=off)"),
+      cl::values(
+                 clEnumValN(Optimization::AGGRESSIVE_DCE, "aggressive_dce", "Delete dead instructions"),
+                 clEnumValN(Optimization::ARG_PROMOTION, "arg_promotion", "Scalarize uninlined fn args"),
+                 clEnumValN(Optimization::CFG_SIMPL, "cfg_simpl", "Clean up disgusting code"),
+                 clEnumValN(Optimization::CONST_MERGE, "const_merge", "Merge dup global constants"),
+                 clEnumValN(Optimization::DEAD_ARG_ELIM, "dead_arg_elim", "Dead argument elimination"),
+                 clEnumValN(Optimization::DEAD_STORE_ELIM, "dead_store_elim", "Dead store elimination"),
+                 clEnumValN(Optimization::FUNC_ATTRS, "func_attrs", "Deduce function attributes"),
+                 clEnumValN(Optimization::FUNC_INLINING, "func_inilining", "Inline small functions"),
+                 clEnumValN(Optimization::GLOBAL_DCE, "global_dce", "Remove unused functions and globals"), 
+                 clEnumValN(Optimization::GLOBAL_OPT, "global_opt", "Optimize global variables"),
+                 clEnumValN(Optimization::GVN, "gvn", "Remove redundancies"),
+                 clEnumValN(Optimization::IND_VAR_SIMPL, "ind_val_simpl", "Canonicalize induction variables"),
+                 clEnumValN(Optimization::INSTR_COMBINING, "instr_combining", "Combine two instructions into one instruction"),
+                 clEnumValN(Optimization::IP_CONST_PROP, "ip_const_prop", "Perform constant propagation"),
+                 clEnumValN(Optimization::JMP_THREADING, "jmp_threading", "Perform jump threading"),
+                 clEnumValN(Optimization::LICM, "licm", "Hoist loop invariants"),
+                 clEnumValN(Optimization::LOOP_DELETION, "loop_deletion", "Delete dead loops"),
+                 clEnumValN(Optimization::LOOP_ROTATE, "loop_rotate", "Rotate loops"),
+                 clEnumValN(Optimization::LOOP_UNROLL, "loop_unroll", "Reduce the number of iterations by unrolling loops"),
+                 clEnumValN(Optimization::LOOP_UNSWITCH,"loop_unswitch", "Unswitch loops"),
+                 clEnumValN(Optimization::MEMCPY_OPT, "memcpy_opt", "Remove memcpy / form memset"),
+                 clEnumValN(Optimization::MEM_TO_REG, "mem_to_reg", "Kill useless allocations"),
+                 clEnumValN(Optimization::PRUNE_EH, "prune_eh", "Remove unused exception handling info"),
+                 clEnumValN(Optimization::REASSOC, "reassoc", "Reassociate expressions"),
+                 clEnumValN(Optimization::SCALAR_REPL_AGGR, "scalar_repl_aggr", "Break up aggregated allocations"),
+                 clEnumValN(Optimization::SCCP, "sccp", "Perform constant propagation with SCCP"),
+                 clEnumValN(Optimization::STRIP_DEAD_PROTOTYPE, "strip_dead_prototype", "Get rid of dead prototypes"),
+                 clEnumValN(Optimization::TAIL_CALL_ELIM, "tail_call_elim", "Eliminate tail calls")
+		    KLEE_LLVM_CL_VAL_END),
+		  cl::CommaSeparated);
+
+
 // A utility function that adds a pass to the pass manager but will also add
 // a verifier pass after if we're supposed to verify.
 static inline void addPass(klee::LegacyLLVMPassManagerTy &PM, Pass *P) {
@@ -80,8 +120,110 @@ static inline void addPass(klee::LegacyLLVMPassManagerTy &PM, Pass *P) {
     PM.add(createVerifierPass());
 }
 
+
+static Pass *GenerateOptPass(enum Optimization::StdOptimization stdOpt) {
+  switch (stdOpt) {
+    case Optimization::AGGRESSIVE_DCE:
+      return createAggressiveDCEPass();
+    case Optimization::ARG_PROMOTION:
+      return createArgumentPromotionPass();
+    case Optimization::CFG_SIMPL:
+      return createCFGSimplificationPass();
+    case Optimization::CONST_MERGE:
+      return createConstantMergePass();
+    case Optimization::DEAD_ARG_ELIM:
+      return createDeadArgEliminationPass();
+    case Optimization::DEAD_STORE_ELIM:
+      return createDeadStoreEliminationPass();
+    case Optimization::FUNC_ATTRS:
+      return createFunctionAttrsPass();
+    case Optimization::FUNC_INLINING:
+      return DisableInline ? createFunctionInliningPass(): NULL;
+    case Optimization::GLOBAL_DCE:
+      return createGlobalDCEPass();
+    case Optimization::GLOBAL_OPT:
+      return createGlobalOptimizerPass();
+    case Optimization::GVN:
+      return createGVNPass();
+    case Optimization::IND_VAR_SIMPL:
+      return createIndVarSimplifyPass();
+    case Optimization::INSTR_COMBINING:
+      return createInstructionCombiningPass();
+    case Optimization::IP_CONST_PROP:
+      return createIPConstantPropagationPass();
+    case Optimization::JMP_THREADING:
+      return createJumpThreadingPass();
+    case Optimization::LICM:
+      return createLICMPass();
+    case Optimization::LOOP_DELETION:
+      return createLoopDeletionPass();
+    case Optimization::LOOP_ROTATE:
+      return createLoopRotatePass();
+    case Optimization::LOOP_UNROLL:
+      return createLoopUnrollPass();
+    case Optimization::LOOP_UNSWITCH:
+      return createLoopUnswitchPass();
+    case Optimization::MEMCPY_OPT:
+      return createMemCpyOptPass();
+    case Optimization::MEM_TO_REG:
+      return createPromoteMemoryToRegisterPass();
+    case Optimization::PRUNE_EH:
+      return createPruneEHPass();
+    case Optimization::REASSOC:
+      return createReassociatePass();
+    case Optimization::SCALAR_REPL_AGGR:
+      return createScalarReplAggregatesPass();
+    case Optimization::SCCP:
+      return createSCCPPass();
+    case Optimization::STRIP_DEAD_PROTOTYPE:
+      return createStripDeadPrototypesPass();
+    default:
+      // This is Tail Call Elimination optimization.
+      return createTailCallEliminationPass();
+  }
+}
+
+
 namespace llvm {
 
+static std::vector<Optimization::StdOptimization> DefaultStdOptimizations = {
+  Optimization::CFG_SIMPL,
+  Optimization::MEM_TO_REG,
+  Optimization::GLOBAL_OPT,
+  Optimization::MEM_TO_REG,
+  Optimization::IP_CONST_PROP,
+  Optimization::DEAD_ARG_ELIM,
+  Optimization::INSTR_COMBINING,
+  Optimization::CFG_SIMPL,
+  Optimization::PRUNE_EH,
+  Optimization::FUNC_ATTRS,
+  Optimization::FUNC_INLINING,
+  Optimization::ARG_PROMOTION,
+  Optimization::INSTR_COMBINING,
+  Optimization::JMP_THREADING,
+  Optimization::CFG_SIMPL,
+  Optimization::SCALAR_REPL_AGGR,
+  Optimization::INSTR_COMBINING,
+  Optimization::TAIL_CALL_ELIM,
+  Optimization::CFG_SIMPL,
+  Optimization::REASSOC,
+  Optimization::LOOP_ROTATE,
+  Optimization::LICM,
+  Optimization::LOOP_UNSWITCH,
+  Optimization::INSTR_COMBINING,
+  Optimization::IND_VAR_SIMPL,
+  Optimization::LOOP_DELETION,
+  Optimization::LOOP_UNROLL,
+  Optimization::INSTR_COMBINING,
+  Optimization::GVN,
+  Optimization::MEMCPY_OPT,
+  Optimization::SCCP,
+  Optimization::INSTR_COMBINING,
+  Optimization::DEAD_STORE_ELIM,
+  Optimization::AGGRESSIVE_DCE,
+  Optimization::STRIP_DEAD_PROTOTYPE,
+  Optimization::CONST_MERGE
+};
 
 static void AddStandardCompilePasses(klee::LegacyLLVMPassManagerTy &PM) {
   PM.add(createVerifierPass());                  // Verify that input is correct
@@ -92,53 +234,14 @@ static void AddStandardCompilePasses(klee::LegacyLLVMPassManagerTy &PM) {
 
   if (DisableOptimizations) return;
 
-  addPass(PM, createCFGSimplificationPass());    // Clean up disgusting code
-  addPass(PM, createPromoteMemoryToRegisterPass());// Kill useless allocas
-  addPass(PM, createGlobalOptimizerPass());      // Optimize out global vars
-  addPass(PM, createGlobalDCEPass());            // Remove unused fns and globs
-  addPass(PM, createIPConstantPropagationPass());// IP Constant Propagation
-  addPass(PM, createDeadArgEliminationPass());   // Dead argument elimination
-  addPass(PM, createInstructionCombiningPass()); // Clean up after IPCP & DAE
-  addPass(PM, createCFGSimplificationPass());    // Clean up after IPCP & DAE
+  std::vector<enum Optimization::StdOptimization> opts = (
+      OptType.size() ? OptType: DefaultStdOptimizations); 
 
-  addPass(PM, createPruneEHPass());              // Remove dead EH info
-  addPass(PM, createFunctionAttrsPass());        // Deduce function attrs
-
-  if (!DisableInline)
-    addPass(PM, createFunctionInliningPass());   // Inline small functions
-  addPass(PM, createArgumentPromotionPass());    // Scalarize uninlined fn args
-
-  addPass(PM, createInstructionCombiningPass()); // Cleanup for scalarrepl.
-  addPass(PM, createJumpThreadingPass());        // Thread jumps.
-  addPass(PM, createCFGSimplificationPass());    // Merge & remove BBs
-  addPass(PM, createScalarReplAggregatesPass()); // Break up aggregate allocas
-  addPass(PM, createInstructionCombiningPass()); // Combine silly seq's
-
-  addPass(PM, createTailCallEliminationPass());  // Eliminate tail calls
-  addPass(PM, createCFGSimplificationPass());    // Merge & remove BBs
-  addPass(PM, createReassociatePass());          // Reassociate expressions
-  addPass(PM, createLoopRotatePass());
-  addPass(PM, createLICMPass());                 // Hoist loop invariants
-  addPass(PM, createLoopUnswitchPass());         // Unswitch loops.
-  // FIXME : Removing instcombine causes nestedloop regression.
-  addPass(PM, createInstructionCombiningPass());
-  addPass(PM, createIndVarSimplifyPass());       // Canonicalize indvars
-  addPass(PM, createLoopDeletionPass());         // Delete dead loops
-  addPass(PM, createLoopUnrollPass());           // Unroll small loops
-  addPass(PM, createInstructionCombiningPass()); // Clean up after the unroller
-  addPass(PM, createGVNPass());                  // Remove redundancies
-  addPass(PM, createMemCpyOptPass());            // Remove memcpy / form memset
-  addPass(PM, createSCCPPass());                 // Constant prop with SCCP
-
-  // Run instcombine after redundancy elimination to exploit opportunities
-  // opened up by them.
-  addPass(PM, createInstructionCombiningPass());
-
-  addPass(PM, createDeadStoreEliminationPass()); // Delete dead stores
-  addPass(PM, createAggressiveDCEPass());        // Delete dead instructions
-  addPass(PM, createCFGSimplificationPass());    // Merge & remove BBs
-  addPass(PM, createStripDeadPrototypesPass());  // Get rid of dead prototypes
-  addPass(PM, createConstantMergePass());        // Merge dup global constants
+  for (unsigned i = 0; i < opts.size(); i++) {
+    Pass *optPass = GenerateOptPass(opts[i]);
+    if (optPass)
+      addPass(PM, optPass);
+  }
 }
 
 /// Optimize - Perform link time optimizations. This will run the scalar
