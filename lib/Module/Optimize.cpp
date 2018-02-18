@@ -87,11 +87,13 @@ static cl::list<Optimization::StdOptimization>
                  clEnumValN(Optimization::FUNC_INLINING, "func_inilining", "Inline small functions"),
                  clEnumValN(Optimization::GLOBAL_DCE, "global_dce", "Remove unused functions and globals"), 
                  clEnumValN(Optimization::GLOBAL_OPT, "global_opt", "Optimize global variables"),
+                 clEnumValN(Optimization::GLOBALS_MODREF, "globmodref", "Perform IP alias analysis"),
                  clEnumValN(Optimization::GVN, "gvn", "Remove redundancies"),
                  clEnumValN(Optimization::IND_VAR_SIMPL, "ind_val_simpl", "Canonicalize induction variables"),
                  clEnumValN(Optimization::INSTR_COMBINING, "instr_combining", "Combine two instructions into one instruction"),
                  clEnumValN(Optimization::INTERNALIZE, "internalize", "Make all functions internal except for main"),
                  clEnumValN(Optimization::IP_CONST_PROP, "ip_const_prop", "Perform constant propagation"),
+                 clEnumValN(Optimization::IPSCCP, "ipsccp", "Perform an interprocedural SCCP"),
                  clEnumValN(Optimization::JMP_THREADING, "jmp_threading", "Perform jump threading"),
                  clEnumValN(Optimization::LICM, "licm", "Hoist loop invariants"),
                  clEnumValN(Optimization::LOOP_DELETION, "loop_deletion", "Delete dead loops"),
@@ -145,6 +147,8 @@ static Pass *GenerateOptPass(enum Optimization::StdOptimization StdOpt,
       return createGlobalDCEPass();
     case Optimization::GLOBAL_OPT:
       return createGlobalOptimizerPass();
+    case Optimization::GLOBALS_MODREF:
+      return createGlobalsModRefPass();
     case Optimization::GVN:
       return createGVNPass();
     case Optimization::IND_VAR_SIMPL:
@@ -157,6 +161,8 @@ static Pass *GenerateOptPass(enum Optimization::StdOptimization StdOpt,
             std::vector<const char *>(1, EntryPoint.c_str()));
     case Optimization::IP_CONST_PROP:
       return createIPConstantPropagationPass();
+    case Optimization::IPSCCP:
+      return createIPSCCPPass();
     case Optimization::JMP_THREADING:
       return createJumpThreadingPass();
     case Optimization::LICM:
@@ -229,10 +235,76 @@ static std::vector<Optimization::StdOptimization> DefaultStdOptimizations = {
   Optimization::AGGRESSIVE_DCE,
   Optimization::STRIP_DEAD_PROTOTYPE,
   Optimization::CONST_MERGE,
+
   // Now that composite has been compiled, scan through the module, looking
   // for a main function.  If main is defined, mark all other functions
   // internal.
-  Optimization::INTERNALIZE
+  Optimization::INTERNALIZE,
+
+  // Propagate constants at call sites into the functions they call.  This
+  // opens opportunities for globalopt (and inlining) by substituting function
+  // pointers passed as arguments to direct uses of functions.
+  Optimization::IPSCCP,
+
+  // Now that we internalized some globals, see if we can hack on them!
+  Optimization::GLOBAL_OPT,
+
+  // Linking modules together can lead to duplicated global constants, only
+  // keep one copy of each constant...
+  Optimization::CONST_MERGE,
+
+  // Remove unused arguments from functions...
+  Optimization::DEAD_ARG_ELIM,
+
+  // Reduce the code after globalopt and ipsccp.  Both can open up significant
+  // simplification opportunities, and both can propagate functions through
+  // function pointers.  When this happens, we often have to resolve varargs
+  // calls, etc, so let instcombine do this.
+  Optimization::INSTR_COMBINING,
+
+  // Inline small functions.
+  Optimization::FUNC_INLINING,
+
+  // Remove dead EH info.
+  Optimization::PRUNE_EH,
+
+  // Optimize globals again.
+  Optimization::GLOBAL_OPT,
+
+  // Remove dead functions.
+  Optimization::GLOBAL_DCE,
+
+  // If we didn't decide to inline a function, check to see if we can
+  // transform it to pass arguments by value instead of by reference.
+  Optimization::ARG_PROMOTION,
+
+  // The IPO passes may leave cruft around.  Clean up after them.
+  Optimization::INSTR_COMBINING,
+  Optimization::JMP_THREADING,
+  Optimization::SCALAR_REPL_AGGR,
+
+  // Run a few AA driven optimizations here and now, to cleanup the code.
+  Optimization::FUNC_ATTRS,
+  Optimization::GLOBALS_MODREF,
+  Optimization::LICM,
+  Optimization::GVN,
+  Optimization::MEMCPY_OPT,
+  Optimization::DEAD_STORE_ELIM,
+
+  // Cleanup and simplify the code after the scalar optimizations.
+  Optimization::INSTR_COMBINING,
+  Optimization::JMP_THREADING,
+  Optimization::MEM_TO_REG,
+
+  // Delete basic blocks, which optimization passes may have killed...
+  Optimization::CFG_SIMPL,
+
+  // Now that we have optimized the program, discard unreachable functions...
+  Optimization::GLOBAL_DCE,
+  Optimization::INSTR_COMBINING,
+  Optimization::CFG_SIMPL,
+  Optimization::AGGRESSIVE_DCE,
+  Optimization::GLOBAL_DCE
 };
 
 static void AddStandardCompilePasses(klee::LegacyLLVMPassManagerTy &PM,
@@ -281,94 +353,11 @@ void Optimize(Module *M, const std::string &EntryPoint) {
   // DWD - Run the opt standard pass list as well.
   AddStandardCompilePasses(Passes, EntryPoint);
 
-  if (!DisableOptimizations) {
-
-    // Propagate constants at call sites into the functions they call.  This
-    // opens opportunities for globalopt (and inlining) by substituting function
-    // pointers passed as arguments to direct uses of functions.  
-    addPass(Passes, createIPSCCPPass());
-
-    // Now that we internalized some globals, see if we can hack on them!
-    addPass(Passes, createGlobalOptimizerPass());
-
-    // Linking modules together can lead to duplicated global constants, only
-    // keep one copy of each constant...
-    addPass(Passes, createConstantMergePass());
-
-    // Remove unused arguments from functions...
-    addPass(Passes, createDeadArgEliminationPass());
-
-    // Reduce the code after globalopt and ipsccp.  Both can open up significant
-    // simplification opportunities, and both can propagate functions through
-    // function pointers.  When this happens, we often have to resolve varargs
-    // calls, etc, so let instcombine do this.
-    addPass(Passes, createInstructionCombiningPass());
-
-    if (!DisableInline)
-      addPass(Passes, createFunctionInliningPass()); // Inline small functions
-
-    addPass(Passes, createPruneEHPass());            // Remove dead EH info
-    addPass(Passes, createGlobalOptimizerPass());    // Optimize globals again.
-    addPass(Passes, createGlobalDCEPass());          // Remove dead functions
-
-    // If we didn't decide to inline a function, check to see if we can
-    // transform it to pass arguments by value instead of by reference.
-    addPass(Passes, createArgumentPromotionPass());
-
-    // The IPO passes may leave cruft around.  Clean up after them.
-    addPass(Passes, createInstructionCombiningPass());
-    addPass(Passes, createJumpThreadingPass());        // Thread jumps.
-    addPass(Passes, createScalarReplAggregatesPass()); // Break up allocas
-
-    // Run a few AA driven optimizations here and now, to cleanup the code.
-    addPass(Passes, createFunctionAttrsPass());      // Add nocapture
-    addPass(Passes, createGlobalsModRefPass());      // IP alias analysis
-
-    addPass(Passes, createLICMPass());               // Hoist loop invariants
-    addPass(Passes, createGVNPass());                // Remove redundancies
-    addPass(Passes, createMemCpyOptPass());          // Remove dead memcpy's
-    addPass(Passes, createDeadStoreEliminationPass()); // Nuke dead stores
-
-    // Cleanup and simplify the code after the scalar optimizations.
-    addPass(Passes, createInstructionCombiningPass());
-
-    addPass(Passes, createJumpThreadingPass());        // Thread jumps.
-    addPass(Passes, createPromoteMemoryToRegisterPass()); // Cleanup jumpthread.
-    
-    // Delete basic blocks, which optimization passes may have killed...
-    addPass(Passes, createCFGSimplificationPass());
-
-    // Now that we have optimized the program, discard unreachable functions...
-    addPass(Passes, createGlobalDCEPass());
-  }
-
   // If the -s or -S command line options were specified, strip the symbols out
   // of the resulting program to make it smaller.  -s and -S are GNU ld options
   // that we are supporting; they alias -strip-all and -strip-debug.
   if (Strip || StripDebug)
     addPass(Passes, createStripSymbolsPass(StripDebug && !Strip));
-
-#if 0
-  // Create a new optimization pass for each one specified on the command line
-  std::auto_ptr<TargetMachine> target;
-  for (unsigned i = 0; i < OptimizationList.size(); ++i) {
-    const PassInfo *Opt = OptimizationList[i];
-    if (Opt->getNormalCtor())
-      addPass(Passes, Opt->getNormalCtor()());
-    else
-      llvm::errs() << "llvm-ld: cannot create pass: " << Opt->getPassName()
-                << "\n";
-  }
-#endif
-
-  // The user's passes may leave cruft around. Clean up after them them but
-  // only if we haven't got DisableOptimizations set
-  if (!DisableOptimizations) {
-    addPass(Passes, createInstructionCombiningPass());
-    addPass(Passes, createCFGSimplificationPass());
-    addPass(Passes, createAggressiveDCEPass());
-    addPass(Passes, createGlobalDCEPass());
-  }
 
   // Make sure everything is still good.
   if (!DontVerify)
