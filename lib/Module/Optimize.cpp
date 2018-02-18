@@ -140,7 +140,7 @@ static Pass *GenerateOptPass(enum Optimization::StdOptimization StdOpt,
     case Optimization::FUNC_ATTRS:
       return createFunctionAttrsPass();
     case Optimization::FUNC_INLINING:
-      return DisableInline ? createFunctionInliningPass(): NULL;
+      return DisableInline ? NULL: createFunctionInliningPass();
     case Optimization::GLOBAL_DCE:
       return createGlobalDCEPass();
     case Optimization::GLOBAL_OPT:
