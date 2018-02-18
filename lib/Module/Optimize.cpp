@@ -101,10 +101,10 @@ static cl::list<Optimization::StdOptimization>
                  clEnumValN(Optimization::LOOP_UNROLL, "loopunroll", "Reduce the number of iterations by unrolling loops"),
                  clEnumValN(Optimization::LOOP_UNSWITCH,"loopunswitch", "Unswitch loops"),
                  clEnumValN(Optimization::MEMCPY_OPT, "memcpyopt", "Remove memcpy / form memset"),
-                 clEnumValN(Optimization::MEM_TO_REG, "memtoreg", "Kill useless allocations"),
+                 clEnumValN(Optimization::MEM_TO_REG, "memtoreg", "Kill useless allocas"),
                  clEnumValN(Optimization::PRUNE_EH, "pruneeh", "Remove unused exception handling info"),
                  clEnumValN(Optimization::REASSOC, "reassoc", "Reassociate expressions"),
-                 clEnumValN(Optimization::SCALAR_REPL_AGGR, "sreplaggr", "Break up aggregated allocations"),
+                 clEnumValN(Optimization::SCALAR_REPL_AGGR, "sreplaggr", "Break up aggregated allocas"),
                  clEnumValN(Optimization::SCCP, "sccp", "Perform constant propagation with SCCP"),
                  clEnumValN(Optimization::STRIP_DEAD_PROTOTYPE, "stripdp", "Get rid of dead prototypes"),
                  clEnumValN(Optimization::TAIL_CALL_ELIM, "tailce", "Eliminate tail calls")
