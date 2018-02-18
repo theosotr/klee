@@ -40,6 +40,7 @@ public:
     GVN,
     IND_VAR_SIMPL,
     INSTR_COMBINING,
+    INTERNALIZE,
     IP_CONST_PROP,
     JMP_THREADING,
     LICM,

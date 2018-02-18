@@ -90,6 +90,7 @@ static cl::list<Optimization::StdOptimization>
                  clEnumValN(Optimization::GVN, "gvn", "Remove redundancies"),
                  clEnumValN(Optimization::IND_VAR_SIMPL, "ind_val_simpl", "Canonicalize induction variables"),
                  clEnumValN(Optimization::INSTR_COMBINING, "instr_combining", "Combine two instructions into one instruction"),
+                 clEnumValN(Optimization::INTERNALIZE, "internalize", "Make all functions internal except for main"),
                  clEnumValN(Optimization::IP_CONST_PROP, "ip_const_prop", "Perform constant propagation"),
                  clEnumValN(Optimization::JMP_THREADING, "jmp_threading", "Perform jump threading"),
                  clEnumValN(Optimization::LICM, "licm", "Hoist loop invariants"),
@@ -121,8 +122,9 @@ static inline void addPass(klee::LegacyLLVMPassManagerTy &PM, Pass *P) {
 }
 
 
-static Pass *GenerateOptPass(enum Optimization::StdOptimization stdOpt) {
-  switch (stdOpt) {
+static Pass *GenerateOptPass(enum Optimization::StdOptimization StdOpt,
+                             const std::string &EntryPoint) {
+  switch (StdOpt) {
     case Optimization::AGGRESSIVE_DCE:
       return createAggressiveDCEPass();
     case Optimization::ARG_PROMOTION:
@@ -149,6 +151,10 @@ static Pass *GenerateOptPass(enum Optimization::StdOptimization stdOpt) {
       return createIndVarSimplifyPass();
     case Optimization::INSTR_COMBINING:
       return createInstructionCombiningPass();
+    case Optimization::INTERNALIZE:
+      return DisableInternalize ? NULL:
+        createInternalizePass(
+            std::vector<const char *>(1, EntryPoint.c_str()));
     case Optimization::IP_CONST_PROP:
       return createIPConstantPropagationPass();
     case Optimization::JMP_THREADING:
@@ -222,10 +228,15 @@ static std::vector<Optimization::StdOptimization> DefaultStdOptimizations = {
   Optimization::DEAD_STORE_ELIM,
   Optimization::AGGRESSIVE_DCE,
   Optimization::STRIP_DEAD_PROTOTYPE,
-  Optimization::CONST_MERGE
+  Optimization::CONST_MERGE,
+  // Now that composite has been compiled, scan through the module, looking
+  // for a main function.  If main is defined, mark all other functions
+  // internal.
+  Optimization::INTERNALIZE
 };
 
-static void AddStandardCompilePasses(klee::LegacyLLVMPassManagerTy &PM) {
+static void AddStandardCompilePasses(klee::LegacyLLVMPassManagerTy &PM,
+                                     const std::string &EntryPoint) {
   PM.add(createVerifierPass());                  // Verify that input is correct
 
   // If the -strip-debug command line option was specified, do it.
@@ -238,7 +249,7 @@ static void AddStandardCompilePasses(klee::LegacyLLVMPassManagerTy &PM) {
       OptType.size() ? OptType: DefaultStdOptimizations); 
 
   for (unsigned i = 0; i < opts.size(); i++) {
-    Pass *optPass = GenerateOptPass(opts[i]);
+    Pass *optPass = GenerateOptPass(opts[i], EntryPoint);
     if (optPass)
       addPass(PM, optPass);
   }
@@ -268,17 +279,9 @@ void Optimize(Module *M, const std::string &EntryPoint) {
 #endif
 
   // DWD - Run the opt standard pass list as well.
-  AddStandardCompilePasses(Passes);
+  AddStandardCompilePasses(Passes, EntryPoint);
 
   if (!DisableOptimizations) {
-    // Now that composite has been compiled, scan through the module, looking
-    // for a main function.  If main is defined, mark all other functions
-    // internal.
-    if (!DisableInternalize) {
-      ModulePass *pass = createInternalizePass(
-          std::vector<const char *>(1, EntryPoint.c_str()));
-      addPass(Passes, pass);
-    }
 
     // Propagate constants at call sites into the functions they call.  This
     // opens opportunities for globalopt (and inlining) by substituting function
