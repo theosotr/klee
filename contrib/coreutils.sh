@@ -16,6 +16,8 @@ cd $GCOV_DIR
 make
 make -C src arch hostname
 
+cd ..
+
 mkdir $LLVM_DIR
 cd $LLVM_DIR
 CC=wllvm ../configure --disable-nls CFLAGS="-g"
