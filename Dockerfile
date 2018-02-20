@@ -1,6 +1,8 @@
 FROM ubuntu:14.04
 MAINTAINER Dan Liew <daniel.liew@imperial.ac.uk>
 
+ARG BUILD_COREUTILS
+
 # FIXME: Docker doesn't currently offer a way to
 # squash the layers from within a Dockerfile so
 # the resulting image is unnecessarily large!
@@ -81,6 +83,9 @@ RUN sudo ln -s /usr/bin/clang /usr/bin/clang-${LLVM_VERSION} && \
 
 # Build KLEE (use TravisCI script)
 RUN cd ${BUILD_DIR} && ${KLEE_SRC}/.travis/klee.sh
+
+# Build coreutils if user provides `BUILD_COREUTILS` flag
+RUN if ["x$BUILD_COREUTILS"]; then cd /home/klee && ${KLEE_SRC}/contrib/coreutils.sh fi
 
 # Revoke password-less sudo and Set up sudo access for the ``klee`` user so it
 # requires a password
