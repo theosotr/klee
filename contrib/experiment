@@ -1,0 +1,120 @@
+#!/bin/bash
+
+tools=(
+  base64
+  basename
+  chcon
+  cksum
+  comm
+  cut
+  dd
+  dircolors
+  dirname
+  du
+  env
+  expand
+  expr
+  fold
+  groups
+  link
+  logname
+  mkdir
+  mkfifo
+  mknod
+  nice
+  nl
+  od
+  paste
+  pathchk
+  printf
+  readlink
+  rmdir
+  setuidgid
+  sleep
+  split
+  sum
+  sync
+  tee
+  touch
+  tr
+  tsort
+  unexpand
+  unlink
+  wc
+)
+
+optimizations=(
+  adce
+  argpromotion
+  cfgsimpl
+  constmerge
+  dae
+  dse
+  funcattrs
+  inline
+  gdce
+  gopt
+  gvn
+  indvarsimpl
+  instrcomb
+  ipconstprop
+  jmpthreading
+  licm
+  loopdel
+  looprotate
+  loopunroll
+  loopunswitch
+  memcpyopt
+  memtoreg
+  pruneesh
+  reassoc
+  sreplaggr
+  sccp
+  stripdp
+  tailce
+)
+
+
+while getopts "l:g:t:o:" opt; do
+  case "$opt" in
+    l)  llvm_dir=$OPTARG
+        ;;
+    g)  gcov_dir=$OPTARG
+        ;;
+    t)  timeout=$OPTARG
+        ;;
+    o)  output_dir=$OPTARG
+        ;;
+    esac
+done
+shift $(($OPTIND - 1));
+
+for tool in "${tools[@]}"; do 
+  for opt in "${optimizations[@]}"; do
+
+    toolbc=$llvm_dir/src/$tool.bc
+    klee --simplify-sym-indices \
+      --write-cov \
+      --output-module \
+      --max-memory 1000 \
+      --allow-external-sym-calls \
+      --only-output-states-covering-new \
+      --output-dir="$output_dir/$tool-$opt-$timeout" \
+      --max-sym-array-size=4096 \
+      --max-instruction-time=10. \
+      --max-time=$timeout \
+      --watchdog \
+      --search dfs \
+      --max-static-fork-pct=1 \
+      --max-static-solve-pct=1 \
+      --max-static-cpfork-pct=1 \
+      --posix-runtime \
+      --libc=uclibc \
+      --optimize \
+      --opt-type=$opt \
+      --use-cache=0 \
+      --use-cex-cache=0\
+      $toolbc --sym-args 0 1 10 --sym-args 0 2 2 --sym-files 1 8 --sym-stdin 8 --sym-stdout
+
+  done
+done
