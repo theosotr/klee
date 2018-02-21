@@ -18,7 +18,8 @@ ENV LLVM_VERSION=3.4 \
     BUILD_DIR=/home/klee/klee_build \
     ASAN_BUILD=0 \
     UBSAN_BUILD=0 \
-    TRAVIS_OS_NAME=linux
+    TRAVIS_OS_NAME=linux \
+    LLVM_COMPILER=clang
 
 RUN apt-get update && \
     apt-get -y --no-install-recommends install \
@@ -85,7 +86,9 @@ RUN sudo ln -s /usr/bin/clang /usr/bin/clang-${LLVM_VERSION} && \
 RUN cd ${BUILD_DIR} && ${KLEE_SRC}/.travis/klee.sh
 
 # Build coreutils if user provides `BUILD_COREUTILS` flag
-RUN if ["x$BUILD_COREUTILS"]; then cd /home/klee && ${KLEE_SRC}/contrib/coreutils.sh fi
+RUN if "$BUILD_COREUTILS" = true; then cd /home/klee && \
+    ${KLEE_SRC}/contrib/coreutils.sh && \
+    sudo cp ${KLEE_SRC}/contrib/experiment /usr/bin; fi
 
 # Revoke password-less sudo and Set up sudo access for the ``klee`` user so it
 # requires a password
