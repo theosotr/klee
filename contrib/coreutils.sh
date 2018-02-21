@@ -23,4 +23,4 @@ cd $LLVM_DIR
 CC=wllvm ../configure --disable-nls CFLAGS="-g"
 CC=wllvm make
 CC=wllvm make -C src arch hostname
-find . -executable -type f | xargs -I '{}' extract-bc '{}'
+find src -executable -type f | xargs -I '{}' extract-bc '{}'
