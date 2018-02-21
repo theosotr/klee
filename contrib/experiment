@@ -74,6 +74,7 @@ optimizations=(
   tailce
 )
 
+mkdir -p $output_dir/klee-data
 
 while getopts "l:g:t:o:" opt; do
   case "$opt" in
