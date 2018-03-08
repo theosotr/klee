@@ -39,7 +39,7 @@ for d in $klee_out/*; do
   done
   cd $gcov_dir/src/
   coverage=$(gcov $tool | grep -oE "[0-9]+\.[0-9]+" | head -2 | head -1)
-  branch=$(gcov $tool | grep -oE "[0-9]+\.[0-9]+" | head -2 | tail -1)
+  branch=$(gcov -b $tool | grep -oE "[0-9]+\.[0-9]+" | head -2 | tail -1)
   cd $curr
 
   klee_stats=$(klee-stats $d --print-all | \
