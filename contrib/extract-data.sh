@@ -18,7 +18,7 @@ shift $(($OPTIND - 1));
 
 mkdir -p $output_dir
 curr=$(pwd)
-echo "tool,optimization,coverage,exec_time,solver_time,nu_queries,query_con" > $output_dir/metrics.csv
+echo "tool,optimization,coverage,branch_cov,exec_time,solver_time,nu_queries,query_con" > $output_dir/metrics.csv
 touch $output_dir/warnings.txt
 truncate -s 0 $output_dir/warnings.txt
 
@@ -38,12 +38,13 @@ for d in $klee_out/*; do
     fi
   done
   cd $gcov_dir/src/
-  coverage=$(gcov $tool | grep -oE "[0-9]+\.[0-9]+" | head -1)
+  coverage=$(gcov $tool | grep -oE "[0-9]+\.[0-9]+" | head -2 | head -1)
+  branch=$(gcov $tool | grep -oE "[0-9]+\.[0-9]+" | head -2 | tail -1)
   cd $curr
 
   klee_stats=$(klee-stats $d --print-all | \
                sed -e '1,3d;$d' | \
                awk -F "\|" '/[\|].*[0-9]+\.[0-9]+/ {print $4, $8, $15, $16}')
   read exec_time solver_time nu_queries query_con <<< $(echo $klee_stats)
-  echo "$tool,$opt,$coverage,$exec_time,$solver_time,$nu_queries,$query_con" >> $output_dir/metrics.csv
+  echo "$tool,$opt,$coverage,$branch,$exec_time,$solver_time,$nu_queries,$query_con" >> $output_dir/metrics.csv
 done
