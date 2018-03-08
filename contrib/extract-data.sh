@@ -41,7 +41,7 @@ for d in $klee_out/*; do
   coverage=$(gcov $tool | grep -oE "[0-9]+\.[0-9]+" | head -1)
   cd $curr
 
-  klee_stats=$(klee-stats basename-all-300/ --print-all | \
+  klee_stats=$(klee-stats $d --print-all | \
                sed -e '1,3d;$d' | \
                awk -F "\|" '/[\|].*[0-9]+\.[0-9]+/ {print $4, $8, $15, $16}')
   read exec_time solver_time nu_queries query_con <<< $(echo $klee_stats)
