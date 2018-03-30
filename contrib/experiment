@@ -97,6 +97,7 @@ for tool in "${tools[@]}"; do
     if [ "$opt" = all ]; then
 	    klee --simplify-sym-indices \
 	      --write-cov \
+        --write-kqueries \
 	      --output-module \
 	      --allow-external-sym-calls \
 	      --only-output-states-covering-new \
@@ -114,11 +115,12 @@ for tool in "${tools[@]}"; do
         --solver-backend=$solver_backend \
         --optimize \
 	      --use-cache=0 \
-	      --use-cex-cache=0\
-	      $toolbc --sym-args 0 1 10 --sym-args 0 2 2 --sym-files 1 8 --sym-stdin 8
+	      --use-cex-cache=0 \
+	      $toolbc --sym-args 0 1 10 --sym-args 0 2 2 --sym-files 1 8 --sym-stdin 8 --sym-stdout
     else
 	    klee --simplify-sym-indices \
 	      --write-cov \
+        --write-kqueries \
 	      --output-module \
 	      --allow-external-sym-calls \
 	      --only-output-states-covering-new \
@@ -137,13 +139,14 @@ for tool in "${tools[@]}"; do
 	      --optimize \
 	      --opt-type=$opt \
 	      --use-cache=0 \
-	      --use-cex-cache=0\
-	      $toolbc --sym-args 0 1 10 --sym-args 0 2 2 --sym-files 1 8 --sym-stdin 8
+	      --use-cex-cache=0 \
+	      $toolbc --sym-args 0 1 10 --sym-args 0 2 2 --sym-files 1 8 --sym-stdin 8 --sym-stdout
     fi
 
   done
   klee --simplify-sym-indices \
     --write-cov \
+    --write-kqueries \
     --output-module \
     --allow-external-sym-calls \
     --only-output-states-covering-new \
@@ -161,5 +164,5 @@ for tool in "${tools[@]}"; do
     --solver-backend=$solver_backend \
     --use-cache=0 \
     --use-cex-cache=0 \
-    $toolbc --sym-args 0 1 10 --sym-args 0 2 2 --sym-files 1 8 --sym-stdin 8
+    $toolbc --sym-args 0 1 10 --sym-args 0 2 2 --sym-files 1 8 --sym-stdin 8 --sym-stdout
 done
