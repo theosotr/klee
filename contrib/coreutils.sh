@@ -7,6 +7,10 @@ GCOV_DIR=gcov-obj
 LLVM_DIR=llvm-obj
 LLVM_COMPILER=clang
 
+# Install gcc to build gcov intrumentation
+sudo apt-get update
+sudo apt-get install -y gcc
+
 wget https://ftp.gnu.org/gnu/coreutils/coreutils-${COREUTILS_VERSION}.tar.gz
 tar -xvzf coreutils-${COREUTILS_VERSION}.tar.gz
 cd coreutils-${COREUTILS_VERSION}
