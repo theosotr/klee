@@ -63,7 +63,9 @@ WORKDIR /home/klee
 
 # Copy across source files needed for build
 RUN mkdir ${KLEE_SRC}
-ADD / ${KLEE_SRC}
+
+RUN mkdir -p ${KLEE_SRC}
+RUN git clone --depth 1 https://github.com/theosotr/klee.git ${KLEE_SRC}/
 
 # Set klee user to be owner
 RUN sudo chown --recursive klee: ${KLEE_SRC}
@@ -88,7 +90,8 @@ RUN cd ${BUILD_DIR} && ${KLEE_SRC}/.travis/klee.sh
 # Build coreutils if user provides `BUILD_COREUTILS` flag
 RUN if "$BUILD_COREUTILS" = true; then cd /home/klee && \
     ${KLEE_SRC}/contrib/coreutils.sh && \
-    sudo cp ${KLEE_SRC}/contrib/experiment /usr/bin; fi
+    sudo cp ${KLEE_SRC}/contrib/experiment /usr/bin && \
+    sudo cp ${KLEE_SRC}/contrib/extract-data.sh /usr/bin; fi
 
 # Revoke password-less sudo and Set up sudo access for the ``klee`` user so it
 # requires a password
