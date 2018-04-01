@@ -54,6 +54,21 @@ DisableOptimizations("disable-opt",
 static cl::opt<bool> DisableInternalize("disable-internalize",
   cl::desc("Do not mark all symbols as internal"));
 
+static cl::opt<bool> DisableIntstrComb("disable-instrcomb",
+  cl::desc("Disable instruction combining optimization"));
+
+static cl::opt<bool> DisableMemToReg("disable-memtoreg",
+  cl::desc("Disable memory to registers optimization"));
+
+static cl::opt<bool> DisableSReplAggr("disable-sreplaggr",
+  cl::desc("Disable scalar replacement of aggregates optimization"));
+
+static cl::opt<bool> DisableStripDP("disable-stripdp",
+  cl::desc("Disable strip dead prototypes optimization"));
+
+static cl::opt<bool> DisableIPCA("disable-ipconstprop",
+  cl::desc("Disable interprocedular constant propagation optimization"));
+
 static cl::opt<bool> VerifyEach("verify-each",
  cl::desc("Verify intermediate results of all passes"));
 
@@ -154,13 +169,15 @@ static Pass *GenerateOptPass(enum Optimization::StdOptimization StdOpt,
     case Optimization::IND_VAR_SIMPL:
       return createIndVarSimplifyPass();
     case Optimization::INSTR_COMBINING:
-      return createInstructionCombiningPass();
+      return DisableIntstrComb ? NULL:
+        createInstructionCombiningPass();
     case Optimization::INTERNALIZE:
       return DisableInternalize ? NULL:
         createInternalizePass(
             std::vector<const char *>(1, EntryPoint.c_str()));
     case Optimization::IP_CONST_PROP:
-      return createIPConstantPropagationPass();
+      return DisableIPCA ? NULL:
+        createIPConstantPropagationPass();
     case Optimization::IPSCCP:
       return createIPSCCPPass();
     case Optimization::JMP_THREADING:
@@ -178,17 +195,20 @@ static Pass *GenerateOptPass(enum Optimization::StdOptimization StdOpt,
     case Optimization::MEMCPY_OPT:
       return createMemCpyOptPass();
     case Optimization::MEM_TO_REG:
-      return createPromoteMemoryToRegisterPass();
+      return DisableMemToReg ? NULL:
+        createPromoteMemoryToRegisterPass();
     case Optimization::PRUNE_EH:
       return createPruneEHPass();
     case Optimization::REASSOC:
       return createReassociatePass();
     case Optimization::SCALAR_REPL_AGGR:
-      return createScalarReplAggregatesPass();
+      return DisableSReplAggr ? NULL:
+        createScalarReplAggregatesPass();
     case Optimization::SCCP:
       return createSCCPPass();
     case Optimization::STRIP_DEAD_PROTOTYPE:
-      return createStripDeadPrototypesPass();
+      return DisableStripDP ? NULL:
+        createStripDeadPrototypesPass();
     default:
       // This is Tail Call Elimination optimization.
       return createTailCallEliminationPass();
