@@ -90,7 +90,7 @@ RUN cd ${BUILD_DIR} && ${KLEE_SRC}/.travis/klee.sh
 # Build coreutils if user provides `BUILD_COREUTILS` flag
 RUN if "$BUILD_COREUTILS" = true; then cd /home/klee && \
     ${KLEE_SRC}/contrib/coreutils.sh && \
-    sudo cp ${KLEE_SRC}/contrib/experiment /usr/bin && \
+    sudo cp ${KLEE_SRC}/contrib/experiment.sh /usr/bin && \
     sudo cp ${KLEE_SRC}/contrib/extract-data.sh /usr/bin; fi
 
 # Revoke password-less sudo and Set up sudo access for the ``klee`` user so it
