@@ -41,6 +41,9 @@
 
 using namespace llvm;
 
+static cl::opt<bool> O1("O1",
+  cl::desc("Enable O1 level optimizations"));
+
 // Don't verify at the end
 static cl::opt<bool> DontVerify("disable-verify", cl::ReallyHidden);
 
@@ -93,11 +96,14 @@ static cl::list<Optimization::StdOptimization>
       cl::desc("Select optimization to be applied before execution.  (default=off)"),
       cl::values(
                  clEnumValN(Optimization::AGGRESSIVE_DCE, "adce", "Delete dead instructions"),
+                 clEnumValN(Optimization::ALWAYS_INLINE, "ainline", "Handle functions marked as 'always-inline'"),
                  clEnumValN(Optimization::ARG_PROMOTION, "argpromotion", "Scalarize uninlined fn args"),
                  clEnumValN(Optimization::CFG_SIMPL, "cfgsimpl", "Clean up disgusting code"),
                  clEnumValN(Optimization::CONST_MERGE, "constmerge", "Merge dup global constants"),
+                 clEnumValN(Optimization::CVP, "cvp", "Correlated Value Propagation"),
                  clEnumValN(Optimization::DEAD_ARG_ELIM, "dae", "Dead argument elimination"),
                  clEnumValN(Optimization::DEAD_STORE_ELIM, "dse", "Dead store elimination"),
+                 clEnumValN(Optimization::EARLY_CSE, "ecse", "Early common subexpression elimination"),
                  clEnumValN(Optimization::FUNC_ATTRS, "funcattrs", "Deduce function attributes"),
                  clEnumValN(Optimization::FUNC_INLINING, "inline", "Inline small functions"),
                  clEnumValN(Optimization::GLOBAL_DCE, "gdce", "Remove unused functions and globals"), 
@@ -110,11 +116,16 @@ static cl::list<Optimization::StdOptimization>
                  clEnumValN(Optimization::IP_CONST_PROP, "ipconstprop", "Perform constant propagation"),
                  clEnumValN(Optimization::IPSCCP, "ipsccp", "Perform an interprocedural SCCP"),
                  clEnumValN(Optimization::JMP_THREADING, "jmpthreading", "Perform jump threading"),
+                 clEnumValN(Optimization::LAZY_VALUE_INFO, "lazyvinfo", "Lazy Value Information Analysis"),
+                 clEnumValN(Optimization::LCSSA, "lcssa", "Loop-Closed SSA Form Pass"),
                  clEnumValN(Optimization::LICM, "licm", "Hoist loop invariants"),
                  clEnumValN(Optimization::LOOP_DELETION, "loopdel", "Delete dead loops"),
+                 clEnumValN(Optimization::LOOP_IDIOM, "loopidiom", "Transform simple loops into a non-loop form."),
                  clEnumValN(Optimization::LOOP_ROTATE, "looprotate", "Rotate loops"),
                  clEnumValN(Optimization::LOOP_UNROLL, "loopunroll", "Reduce the number of iterations by unrolling loops"),
                  clEnumValN(Optimization::LOOP_UNSWITCH,"loopunswitch", "Unswitch loops"),
+                 clEnumValN(Optimization::LOOP_SIMPL,"loopsimpl", "Simplify loops"),
+                 clEnumValN(Optimization::LOWER_EXPECT,"lowerexpect", "Lower 'expect' Intrinsics"),
                  clEnumValN(Optimization::MEMCPY_OPT, "memcpyopt", "Remove memcpy / form memset"),
                  clEnumValN(Optimization::MEM_TO_REG, "memtoreg", "Kill useless allocas"),
                  clEnumValN(Optimization::PRUNE_EH, "pruneeh", "Remove unused exception handling info"),
@@ -144,16 +155,22 @@ static Pass *GenerateOptPass(enum Optimization::StdOptimization StdOpt,
   switch (StdOpt) {
     case Optimization::AGGRESSIVE_DCE:
       return createAggressiveDCEPass();
+    case Optimization::ALWAYS_INLINE:
+      return createAlwaysInlinerPass();
     case Optimization::ARG_PROMOTION:
       return createArgumentPromotionPass();
     case Optimization::CFG_SIMPL:
       return createCFGSimplificationPass();
     case Optimization::CONST_MERGE:
       return createConstantMergePass();
+    case Optimization::CVP:
+      return createCorrelatedValuePropagationPass();
     case Optimization::DEAD_ARG_ELIM:
       return createDeadArgEliminationPass();
     case Optimization::DEAD_STORE_ELIM:
       return createDeadStoreEliminationPass();
+    case Optimization::EARLY_CSE:
+      return createEarlyCSEPass();
     case Optimization::FUNC_ATTRS:
       return createFunctionAttrsPass();
     case Optimization::FUNC_INLINING:
@@ -182,16 +199,26 @@ static Pass *GenerateOptPass(enum Optimization::StdOptimization StdOpt,
       return createIPSCCPPass();
     case Optimization::JMP_THREADING:
       return createJumpThreadingPass();
+    case Optimization::LAZY_VALUE_INFO:
+      return createLazyValueInfoPass();
+    case Optimization::LCSSA:
+      return createLCSSAPass();
     case Optimization::LICM:
       return createLICMPass();
     case Optimization::LOOP_DELETION:
       return createLoopDeletionPass();
+    case Optimization::LOOP_IDIOM:
+      return createLoopIdiomPass();
     case Optimization::LOOP_ROTATE:
       return createLoopRotatePass();
     case Optimization::LOOP_UNROLL:
       return createLoopUnrollPass();
     case Optimization::LOOP_UNSWITCH:
       return createLoopUnswitchPass();
+    case Optimization::LOOP_SIMPL:
+      return createLoopSimplifyPass();
+    case Optimization::LOWER_EXPECT:
+      return createLowerExpectIntrinsicPass();
     case Optimization::MEMCPY_OPT:
       return createMemCpyOptPass();
     case Optimization::MEM_TO_REG:
@@ -217,6 +244,57 @@ static Pass *GenerateOptPass(enum Optimization::StdOptimization StdOpt,
 
 
 namespace llvm {
+
+// Optimization scheduling taken from the -O1 option.
+static std::vector<Optimization::StdOptimization> O1Optimizations = {
+  Optimization::CFG_SIMPL,
+  Optimization::SCALAR_REPL_AGGR,
+  Optimization::EARLY_CSE,
+  Optimization::LOWER_EXPECT,
+  Optimization::GLOBAL_OPT,
+  Optimization::IPSCCP,
+  Optimization::DEAD_ARG_ELIM,
+  Optimization::INSTR_COMBINING,
+  Optimization::CFG_SIMPL,
+  Optimization::PRUNE_EH,
+  Optimization::ALWAYS_INLINE,
+  Optimization::FUNC_ATTRS,
+  Optimization::SCALAR_REPL_AGGR,
+  Optimization::EARLY_CSE,
+  Optimization::LAZY_VALUE_INFO,
+  Optimization::JMP_THREADING,
+  Optimization::CVP,
+  Optimization::CFG_SIMPL,
+  Optimization::INSTR_COMBINING,
+  Optimization::TAIL_CALL_ELIM,
+  Optimization::CFG_SIMPL,
+  Optimization::REASSOC,
+  Optimization::LOOP_SIMPL,
+  Optimization::LCSSA,
+  Optimization::LOOP_ROTATE,
+  Optimization::LICM,
+  Optimization::LCSSA,
+  Optimization::LOOP_UNSWITCH,
+  Optimization::INSTR_COMBINING,
+  Optimization::LOOP_SIMPL,
+  Optimization::LCSSA,
+  Optimization::IND_VAR_SIMPL,
+  Optimization::LOOP_IDIOM,
+  Optimization::LOOP_DELETION,
+  Optimization::LOOP_UNROLL,
+  Optimization::MEMCPY_OPT,
+  Optimization::SCCP,
+  Optimization::INSTR_COMBINING,
+  Optimization::LAZY_VALUE_INFO,
+  Optimization::JMP_THREADING,
+  Optimization::CVP,
+  Optimization::DEAD_STORE_ELIM,
+  Optimization::AGGRESSIVE_DCE,
+  Optimization::CFG_SIMPL,
+  Optimization::INSTR_COMBINING,
+  Optimization::STRIP_DEAD_PROTOTYPE,
+};
+
 
 static std::vector<Optimization::StdOptimization> DefaultStdOptimizations = {
   Optimization::CFG_SIMPL,
@@ -337,9 +415,16 @@ static void AddStandardCompilePasses(klee::LegacyLLVMPassManagerTy &PM,
 
   if (DisableOptimizations) return;
 
-  std::vector<enum Optimization::StdOptimization> opts = (
-      OptType.size() ? OptType: DefaultStdOptimizations); 
+  std::vector<enum Optimization::StdOptimization> opts;
 
+  if (OptType.size()) {
+    opts = OptType;
+  } else if (O1) {
+    opts = O1Optimizations;
+  } else {
+    opts = DefaultStdOptimizations;
+  }
+  
   for (unsigned i = 0; i < opts.size(); i++) {
     Pass *optPass = GenerateOptPass(opts[i], EntryPoint);
     if (optPass)
