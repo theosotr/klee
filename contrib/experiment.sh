@@ -76,7 +76,7 @@ optimizations=(
 )
 
 
-while getopts "s:t:o:" opt; do
+while getopts "s:t:o:l:" opt; do
   case "$opt" in
     s)  solver_backend=$OPTARG
         ;;
