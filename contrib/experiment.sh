@@ -117,7 +117,7 @@ for tool in "${tools[@]}"; do
         --optimize \
 	      --use-cache=0 \
 	      --use-cex-cache=0 \
-	      $toolbc --sym-args 0 1 10 --sym-args 0 2 2 --sym-files 1 8 --sym-stdin 8 --sym-stdout
+	      $toolbc --sym-args 0 1 10 --sym-args 0 2 2 --sym-files 1 8 --sym-stdin 8
     else
 	    klee --simplify-sym-indices \
 	      --write-cov \
@@ -142,7 +142,7 @@ for tool in "${tools[@]}"; do
 	      --opt-type=$opt \
 	      --use-cache=0 \
 	      --use-cex-cache=0 \
-	      $toolbc --sym-args 0 1 10 --sym-args 0 2 2 --sym-files 1 8 --sym-stdin 8 --sym-stdout
+	      $toolbc --sym-args 0 1 10 --sym-args 0 2 2 --sym-files 1 8 --sym-stdin 8
     fi
 
   done
@@ -167,5 +167,5 @@ for tool in "${tools[@]}"; do
     --solver-backend=$solver_backend \
     --use-cache=0 \
     --use-cex-cache=0 \
-    $toolbc --sym-args 0 1 10 --sym-args 0 2 2 --sym-files 1 8 --sym-stdin 8 --sym-stdout
+    $toolbc --sym-args 0 1 10 --sym-args 0 2 2 --sym-files 1 8 --sym-stdin 8
 done
