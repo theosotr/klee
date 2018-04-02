@@ -84,6 +84,8 @@ while getopts "s:t:o:" opt; do
         ;;
     o)  output_dir=$OPTARG
         ;;
+    l)  llvm_dir=$OPTARG
+        ;;
     esac
 done
 shift $(($OPTIND - 1));
