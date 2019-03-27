@@ -9,7 +9,6 @@ optimizations=(
   constmerge
   dae
   dse
-  funcattrs
   inline
   gdce
   gopt
@@ -34,7 +33,7 @@ optimizations=(
 )
 
 
-while getopts "s:t:o:l:" opt; do
+while getopts "s:t:o:l:p:" opt; do
   case "$opt" in
     s)  solver_backend=$OPTARG
         ;;
@@ -59,14 +58,14 @@ do
     if [ "$opt" = all ]; then
 	    klee --simplify-sym-indices \
 	      --write-cov \
-          --use-query-log solver:kquery \
-          --write-kqueries \
+              --use-query-log solver:kquery \
+              --write-kqueries \
 	      --output-module \
-	      --allow-external-sym-calls \
+	      --external-calls=all \
 	      --only-output-states-covering-new \
 	      --output-dir="$output_dir/$tool-$opt-$timeout" \
 	      --max-sym-array-size=4096 \
-	      --max-instruction-time=10. \
+	      --max-instruction-time=10 \
 	      --max-time=$timeout \
 	      --watchdog \
 	      --search dfs \
@@ -75,22 +74,21 @@ do
 	      --max-static-cpfork-pct=1 \
 	      --posix-runtime \
 	      --libc=uclibc \
-          --solver-backend=$solver_backend \
-          --optimize \
-	      --use-cache=0 \
-	      --use-cex-cache=0 \
+              --solver-backend=$solver_backend \
+              --optimize \
+	      --use-cex-cache=false \
 	      $toolbc --sym-args 0 1 10 --sym-args 0 2 2 --sym-files 1 8 --sym-stdin 8
     else
 	    klee --simplify-sym-indices \
 	      --write-cov \
-          --use-query-log solver:kquery \
-          --write-kqueries \
+              --use-query-log solver:kquery \
+              --write-kqueries \
 	      --output-module \
-	      --allow-external-sym-calls \
+	      --external-calls=all \
 	      --only-output-states-covering-new \
 	      --output-dir="$output_dir/$tool-$opt-$timeout" \
 	      --max-sym-array-size=4096 \
-	      --max-instruction-time=10. \
+	      --max-instruction-time=10 \
 	      --max-time=$timeout \
 	      --watchdog \
 	      --search dfs \
@@ -99,11 +97,10 @@ do
 	      --max-static-cpfork-pct=1 \
 	      --posix-runtime \
 	      --libc=uclibc \
-        --solver-backend=$solver_backend \
+              --solver-backend=$solver_backend \
 	      --optimize \
 	      --opt-type=$opt \
-	      --use-cache=0 \
-	      --use-cex-cache=0 \
+	      --use-cex-cache=false \
 	      $toolbc --sym-args 0 1 10 --sym-args 0 2 2 --sym-files 1 8 --sym-stdin 8
     fi
 
@@ -113,11 +110,11 @@ do
     --use-query-log solver:kquery \
     --write-kqueries \
     --output-module \
-    --allow-external-sym-calls \
+    --external-calls=all \
     --only-output-states-covering-new \
     --output-dir="$output_dir/$tool-no-$timeout" \
     --max-sym-array-size=4096 \
-    --max-instruction-time=10. \
+    --max-instruction-time=10 \
     --max-time=$timeout \
     --watchdog \
     --search dfs \
@@ -127,7 +124,6 @@ do
     --posix-runtime \
     --libc=uclibc \
     --solver-backend=$solver_backend \
-    --use-cache=0 \
-    --use-cex-cache=0 \
+    --use-cex-cache=false \
     $toolbc --sym-args 0 1 10 --sym-args 0 2 2 --sym-files 1 8 --sym-stdin 8
-done < $tools
+done < "$tools"
