@@ -28,7 +28,6 @@ class Optimization {
 public:
   enum StdOptimization {
     AGGRESSIVE_DCE,
-    ALWAYS_INLINE,
     ARG_PROMOTION,
     CFG_SIMPL,
     CONST_MERGE,
