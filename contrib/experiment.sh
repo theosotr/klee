@@ -29,7 +29,6 @@ optimizations=(
   sreplaggr
   sccp
   stripdp
-  tailce
 )
 
 
