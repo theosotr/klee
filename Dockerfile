@@ -57,11 +57,3 @@ RUN /bin/bash -c 'ln -s ${BASE}/klee_src /home/klee/ && ln -s ${BASE}/klee_build
 
 # TODO Remove when STP is fixed
 RUN /bin/bash -c 'echo "export LD_LIBRARY_PATH=$(cd ${BASE}/metaSMT-*-deps/stp-git-basic/lib/ && pwd)" >> /home/klee/.bashrc'
-
-
-RUN if "$BUILD_COREUTILS" = true; then cd /home/klee && \
-    ${KLEE_SRC}/contrib/coreutils.sh && \
-    ${KLEE_SRC}/contrib/python_env.sh && \
-    sudo cp ${KLEE_SRC}/contrib/experiment.sh /usr/bin && \
-    sudo cp ${KLEE_SRC}/contrib/ffd_experiment /usr/bin && \
-    sudo cp ${KLEE_SRC}/contrib/extract-data.sh /usr/bin; fi

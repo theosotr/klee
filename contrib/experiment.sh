@@ -49,7 +49,7 @@ while getopts "s:t:o:l:p:" opt; do
 done
 shift $(($OPTIND - 1));
 
-mkdir -p $output_dir/klee-data
+mkdir -p $output_dir
 
 while IFS= read tool
 do
